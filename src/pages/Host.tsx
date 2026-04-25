@@ -7,6 +7,7 @@ import { Player } from '../lib/types';
 import { useState, useEffect } from 'react';
 import { Users, AlertTriangle, ArrowRight, Check, History, RefreshCcw, X } from 'lucide-react';
 import ChatBox from '../components/ChatBox';
+import { playSound } from '../lib/sounds';
 
 export default function Host() {
   const { code } = useParams();
@@ -68,6 +69,7 @@ export default function Host() {
   const handleStartRound = async () => {
     const bet = isBlackjack ? 0 : parseInt(baseBet);
     if (bet >= 0) {
+      playSound('deal');
       await startRound(code!, bet);
       setSelectedWinners([]);
       setPlayerOutcomes({});
@@ -76,6 +78,7 @@ export default function Host() {
 
   const handleCloseRound = async () => {
     if (!game.currentRound) return;
+    playSound('action');
     await closeRound(code!, multiplier, selectedWinners, players, game.currentRound, isBlackjack, playerOutcomes);
   };
 

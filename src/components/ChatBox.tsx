@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Message } from '../lib/types';
 import { sendMessage } from '../lib/gameActions';
 import { Send, MessageSquare } from 'lucide-react';
+import { playSound } from '../lib/sounds';
 
 interface ChatBoxProps {
   code: string;
@@ -14,12 +15,27 @@ export default function ChatBox({ code, uid, name, messages }: ChatBoxProps) {
   const [text, setText] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  
+  const prevMessagesLength = useRef(messages.length);
+  const isInitialLoad = useRef(true);
 
   useEffect(() => {
+    // Scroll to bottom when messages change
     if (isOpen && bottomRef.current) {
       bottomRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [messages, isOpen]);
+    
+    // Play sound on new message
+    if (!isInitialLoad.current && messages.length > prevMessagesLength.current) {
+      const lastMessage = messages[messages.length - 1];
+      if (lastMessage && lastMessage.senderId !== uid) {
+        playSound('chat');
+      }
+    }
+    
+    prevMessagesLength.current = messages.length;
+    isInitialLoad.current = false;
+  }, [messages, isOpen, uid]);
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();

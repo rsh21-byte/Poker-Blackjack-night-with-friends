@@ -2,10 +2,11 @@ import { useParams } from 'react-router-dom';
 import { useGame } from '../lib/useGame';
 import { auth } from '../firebase';
 import { joinGame, submitAction } from '../lib/gameActions';
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { User, Coins, Check, AlertCircle, Trophy, Frown, XCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import ChatBox from '../components/ChatBox';
+import { playSound } from '../lib/sounds';
 
 export default function Play() {
   const { code } = useParams();
@@ -80,8 +81,61 @@ export default function Play() {
   const myAction = round?.actions[uid];
   const isBlackjack = game.meta.type === 'blackjack';
 
+  const prevRoundRef = useRef(game.currentRound);
+  const prevHistoryLengthRef = useRef(history.length);
+  const prevBalanceRef = useRef(me?.balance);
+
+  useEffect(() => {
+    if (!me) return;
+
+    // Detect round start (dealing cards)
+    if (!prevRoundRef.current && game.currentRound) {
+      playSound('deal');
+    }
+
+    // Detect round end (results)
+    if (prevRoundRef.current && !game.currentRound && history.length > prevHistoryLengthRef.current) {
+      // Analyze latest history for sounds
+      const latestHistory = history[0];
+      if (latestHistory && latestHistory.actions[uid]) {
+        const act = latestHistory.actions[uid];
+        const isWinPoker = latestHistory.winners.includes(uid);
+        const outcomeBJ = latestHistory.outcomes ? latestHistory.outcomes[uid] : null;
+        
+        const isWin = outcomeBJ ? (outcomeBJ === 'win' || outcomeBJ === 'blackjack') : isWinPoker;
+        const isPush = outcomeBJ === 'push';
+        const isFold = act.type === 'fold';
+        
+        if (isWin) {
+          playSound('win');
+        } else if (isPush) {
+          playSound('push');
+        } else if (isFold) {
+          // already played fold sound when doing action probably, but can play lose or thud here.
+        } else {
+          playSound('lose');
+        }
+      }
+    }
+
+    // Detect elimination
+    if (prevBalanceRef.current !== undefined && prevBalanceRef.current > 0 && me.balance === 0) {
+      // Small delay so it plays right after the lose sound
+      setTimeout(() => playSound('lose'), 600);
+    }
+
+    prevRoundRef.current = game.currentRound;
+    prevHistoryLengthRef.current = history.length;
+    prevBalanceRef.current = me.balance;
+  }, [game.currentRound, history, me, uid]);
+
   const doAction = async (type: import('../lib/types').PlayerAction['type'], amount: number) => {
     if (!round) return;
+    if (type === 'fold') {
+      playSound('fold');
+    } else {
+      playSound('bet');
+    }
     await submitAction(code!, uid, { type, amount });
   };
 
