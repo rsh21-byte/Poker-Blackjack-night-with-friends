@@ -2,9 +2,9 @@ import { useParams, Link } from 'react-router-dom';
 import { useGame } from '../lib/useGame';
 import { auth } from '../firebase';
 import QRCode from 'react-qr-code';
-import { startGame, startRound, closeRound, setPlayerBalance, setAllPlayerBalances, resetGame } from '../lib/gameActions';
+import { startGame, startRound, closeRound, advancePhase, setPlayerBalance, setAllPlayerBalances, resetGame } from '../lib/gameActions';
 import { Player } from '../lib/types';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Users, AlertTriangle, ArrowRight, Check, History, RefreshCcw, X } from 'lucide-react';
 import ChatBox from '../components/ChatBox';
 import { playSound } from '../lib/sounds';
@@ -19,6 +19,31 @@ export default function Host() {
   const [initialBalances, setInitialBalances] = useState<Record<string, string>>({});
   const [globalBalance, setGlobalBalance] = useState('');
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [pulsingUids, setPulsingUids] = useState<Set<string>>(new Set());
+  const prevBalances = useRef<Record<string, number>>({});
+
+  useEffect(() => {
+    playersList.forEach(([uid, p]) => {
+      if (prevBalances.current[uid] !== undefined && prevBalances.current[uid] !== p.balance) {
+        setPulsingUids(prev => new Set(prev).add(uid));
+        setTimeout(() => {
+          setPulsingUids(prev => {
+            const next = new Set(prev);
+            next.delete(uid);
+            return next;
+          });
+        }, 1000);
+      }
+      prevBalances.current[uid] = p.balance;
+    });
+  }, [players]);
+
+  // ensure initial balances are populated
+  useEffect(() => {
+     playersList.forEach(([uid, p]) => {
+         prevBalances.current[uid] = p.balance;
+     });
+  }, []);
 
   const [isCreating, setIsCreating] = useState(false);
 
@@ -235,7 +260,8 @@ export default function Host() {
                   <h3 className="font-bold mb-4">סטטוס שחקנים על השולחן</h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {playersList.map(([uid, p]) => {
-                      const action = game.currentRound!.actions[uid];
+                      const actionList = game.currentRound!.actions[uid] || [];
+                      const action = actionList[actionList.length - 1];
                       const isAllIn = action && action.type !== 'fold' && action.amount >= p.balance;
                       const didFold = action && action.type === 'fold';
                       
@@ -279,7 +305,7 @@ export default function Host() {
                         <div key={uid} className={`flex flex-col p-3 rounded-xl border ${statusBg} transition-all`}>
                           <div className="flex justify-between items-start mb-1">
                             <span className="font-bold text-slate-200">{p.name}</span>
-                            <span className="text-xs font-mono text-slate-500">${p.balance}</span>
+                            <span className={`text-xs font-mono transition-colors duration-500 ${pulsingUids.has(uid) ? 'text-white bg-emerald-500 px-1 rounded' : 'text-slate-500'}`}>${p.balance}</span>
                           </div>
                           
                           <div className="flex justify-between items-center mt-auto">
@@ -305,6 +331,19 @@ export default function Host() {
 
                 {/* Resolve Settings */}
                 <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700">
+                  <h3 className="font-bold mb-4">ניהול שלב המשחק</h3>
+                  <div className="flex flex-wrap gap-2 mb-6">
+                    {(['preflop', 'flop', 'turn', 'river', 'resolved'] as const).map(p => (
+                      <button 
+                        key={p} 
+                        onClick={() => advancePhase(code!, p)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${game.currentRound!.phase === p ? 'bg-blue-600 text-white' : 'bg-slate-900 text-slate-400 hover:bg-slate-700'}`}
+                      >
+                        {p}
+                      </button>
+                    ))}
+                  </div>
+
                   <h3 className="font-bold mb-4">קביעת תוצאות</h3>
                   
                   {isBlackjack ? (
@@ -388,7 +427,7 @@ export default function Host() {
                {playersList.sort((a,b) => b[1].balance - a[1].balance).map(([uid, p]) => (
                   <div key={uid} className="bg-slate-800 p-4 rounded-xl border border-slate-700 text-center">
                     <div className="font-bold">{p.name}</div>
-                    <div className="text-xl font-mono text-emerald-400 mt-1">${p.balance}</div>
+                    <div className={`text-xl font-mono transition-colors duration-500 ${pulsingUids.has(uid) ? 'text-white bg-emerald-500 px-1 rounded' : 'text-emerald-400'} mt-1`}>${p.balance}</div>
                   </div>
                ))}
              </div>

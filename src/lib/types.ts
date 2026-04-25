@@ -16,9 +16,11 @@ export interface Round {
   active: boolean;
   baseBet: number;
   status: 'betting' | 'resolved';
+  phase: 'preflop' | 'flop' | 'turn' | 'river';
+  currentHighestBet: number;
   multiplier: number | null;
   winners: Record<string, boolean>;
-  actions: Record<string, PlayerAction>;
+  actions: Record<string, PlayerAction[]>; // Changed to array to allow multiple actions
 }
 
 export interface GameMeta {

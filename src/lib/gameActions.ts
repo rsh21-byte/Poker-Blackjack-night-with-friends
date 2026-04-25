@@ -1,4 +1,4 @@
-import { doc, setDoc, updateDoc, collection, getDocs, serverTimestamp, writeBatch } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, collection, getDocs, serverTimestamp, writeBatch, arrayUnion } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { Player, PlayerAction, Round } from './types';
 
@@ -71,6 +71,8 @@ export const startRound = async (code: string, baseBet: number) => {
         active: true,
         baseBet,
         status: 'betting',
+        phase: 'preflop',
+        currentHighestBet: baseBet,
         multiplier: null,
         winners: {},
         actions: {}
@@ -85,7 +87,7 @@ export const submitAction = async (code: string, uid: string, action: PlayerActi
   try {
     const gameRef = doc(db, 'games', code);
     await updateDoc(gameRef, {
-      [`currentRound.actions.${uid}`]: action
+      [`currentRound.actions.${uid}`]: arrayUnion(action)
     });
   } catch (error) {
     handleFirestoreError(error, OperationType.UPDATE, `games/${code}`);
@@ -171,6 +173,18 @@ export const sendMessage = async (code: string, uid: string, name: string, text:
     });
   } catch (error) {
     handleFirestoreError(error, OperationType.CREATE, `games/${code}/messages`);
+  }
+};
+
+export const advancePhase = async (code: string, nextPhase: 'preflop' | 'flop' | 'turn' | 'river' | 'resolved') => {
+  try {
+    const gameRef = doc(db, 'games', code);
+    await updateDoc(gameRef, {
+      'currentRound.phase': nextPhase,
+      'currentRound.status': nextPhase === 'resolved' ? 'resolved' : 'betting'
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, `games/${code}`);
   }
 };
 

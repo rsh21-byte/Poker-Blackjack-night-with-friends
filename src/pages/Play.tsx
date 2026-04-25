@@ -130,7 +130,9 @@ export default function Play() {
 
   // PLAYING PHASE
   const round = game.currentRound;
-  const myAction = uid ? round?.actions[uid] : undefined;
+  // Get all actions for me, and pick the last one for the current round state?
+  const myActionList = uid ? round?.actions[uid] : undefined;
+  const myAction = myActionList ? myActionList[myActionList.length - 1] : undefined;
   const isBlackjack = game.meta.type === 'blackjack';
 
   const doAction = async (type: import('../lib/types').PlayerAction['type'], amount: number) => {
@@ -323,6 +325,9 @@ export default function Play() {
       ) : (
         <div className="space-y-4">
            <div className="text-center mb-6">
+             <div className="inline-block px-3 py-1 bg-amber-500/20 text-amber-500 rounded-full text-xs font-bold mb-2">
+                שלב: {round.phase === 'preflop' ? 'טרום פלופ' : round.phase === 'flop' ? 'הפלופ (Flop)' : round.phase === 'turn' ? 'הטרן (Turn)' : 'הריבר (River)'}
+             </div>
              <p className="text-slate-400 mb-1">הימור בסיס לסיבוב:</p>
              <p className="text-3xl font-mono font-bold text-white">${round.baseBet}</p>
            </div>
