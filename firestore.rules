@@ -1,0 +1,103 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- GLOBAL HELPERS ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // --- ENTITY VALIDATORS ---
+    function isValidGame(data) {
+      return data.keys().hasAll(['createdAt', 'hostId', 'phase', 'type']) &&
+             data.hostId is string &&
+             data.phase in ['lobby', 'playing', 'ended'] &&
+             data.type in ['poker', 'blackjack'] &&
+             data.createdAt is timestamp;
+    }
+
+    function isValidPlayer(data) {
+      return data.keys().hasAll(['name', 'balance', 'joinedAt', 'status']) &&
+             data.name is string && data.name.size() <= 32 &&
+             data.balance is number &&
+             data.joinedAt is timestamp &&
+             data.status in ['waiting', 'active', 'eliminated'];
+    }
+
+    function isValidMessage(data) {
+      return data.keys().hasAll(['text', 'senderId', 'senderName', 'timestamp']) &&
+             data.text is string && data.text.size() <= 500 &&
+             data.senderId == request.auth.uid &&
+             data.senderName is string &&
+             data.timestamp is timestamp;
+    }
+
+    // --- COLLECTIONS ---
+    match /games/{gameId} {
+      allow get, list: if isSignedIn();
+      
+      allow create: if isSignedIn() && 
+                      isValidId(gameId) && 
+                      isValidGame(incoming()) &&
+                      incoming().hostId == request.auth.uid &&
+                      incoming().phase == 'lobby' &&
+                      incoming().createdAt == request.time;
+
+      allow update: if isSignedIn() && (
+                        // No isValidGame here because updates can be partial
+                        // but we check specific actions
+                        
+                        // Action: Host manages game
+                        (existing().hostId == request.auth.uid && 
+                         incoming().hostId == existing().hostId) ||
+                        // Action: Players submit actions
+                        (incoming().diff(existing()).affectedKeys().hasOnly(['currentRound']))
+                      );
+
+      match /players/{playerId} {
+        allow get, list: if isSignedIn();
+        
+        allow create: if isSignedIn() && 
+                        playerId == request.auth.uid &&
+                        isValidPlayer(incoming()) &&
+                        get(/databases/$(database)/documents/games/$(gameId)).data.phase == 'lobby' &&
+                        incoming().joinedAt == request.time;
+
+        allow update: if isSignedIn() && (
+                          // Host updates (e.g. payout)
+                          get(/databases/$(database)/documents/games/$(gameId)).data.hostId == request.auth.uid ||
+                          // Player updates
+                          playerId == request.auth.uid
+                        );
+      }
+
+      match /messages/{messageId} {
+        allow get, list: if isSignedIn();
+        allow create: if isSignedIn() && isValidMessage(incoming()) && incoming().timestamp == request.time;
+      }
+
+      match /history/{historyId} {
+        allow get, list: if isSignedIn();
+        allow create: if isSignedIn() && 
+                        get(/databases/$(database)/documents/games/$(gameId)).data.hostId == request.auth.uid &&
+                        incoming().timestamp == request.time;
+      }
+    }
+  }
+}

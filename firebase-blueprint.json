@@ -1,0 +1,84 @@
+{
+  "entities": {
+    "game": {
+      "title": "Casino Game",
+      "description": "Represents a casino game session (Poker or Blackjack).",
+      "type": "object",
+      "properties": {
+        "createdAt": { "type": "string", "format": "date-time" },
+        "hostId": { "type": "string" },
+        "phase": { "type": "string", "enum": ["lobby", "playing", "ended"] },
+        "type": { "type": "string", "enum": ["poker", "blackjack"] },
+        "currentRound": {
+          "type": "object",
+          "properties": {
+            "active": { "type": "boolean" },
+            "baseBet": { "type": "number" },
+            "status": { "type": "string", "enum": ["betting", "resolved"] },
+            "multiplier": { "type": "number" },
+            "winners": { "type": "object" },
+            "actions": { "type": "object" }
+          }
+        },
+        "lastBaseBet": { "type": "number" }
+      },
+      "required": ["createdAt", "hostId", "phase", "type"]
+    },
+    "player": {
+      "title": "Player",
+      "description": "A player in a poker game.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "balance": { "type": "number" },
+        "joinedAt": { "type": "number" },
+        "status": { "type": "string", "enum": ["waiting", "active", "eliminated"] }
+      },
+      "required": ["name", "balance", "joinedAt", "status"]
+    },
+    "message": {
+      "title": "Chat Message",
+      "description": "A message sent in the game chat.",
+      "type": "object",
+      "properties": {
+        "text": { "type": "string" },
+        "senderId": { "type": "string" },
+        "senderName": { "type": "string" },
+        "timestamp": { "type": "number" }
+      },
+      "required": ["text", "senderId", "senderName", "timestamp"]
+    },
+    "history": {
+      "title": "Round History",
+      "description": "History of a played round.",
+      "type": "object",
+      "properties": {
+        "timestamp": { "type": "number" },
+        "baseBet": { "type": "number" },
+        "multiplier": { "type": "number" },
+        "actions": { "type": "object" },
+        "winners": { "type": "array", "items": { "type": "string" } },
+        "balancesAfter": { "type": "object" }
+      },
+      "required": ["timestamp", "baseBet", "multiplier", "actions", "winners", "balancesAfter"]
+    }
+  },
+  "firestore": {
+    "/games/{gameId}": {
+      "schema": "game",
+      "description": "Top-level collection for poker games."
+    },
+    "/games/{gameId}/players/{playerId}": {
+      "schema": "player",
+      "description": "Sub-collection of players within a game."
+    },
+    "/games/{gameId}/messages/{messageId}": {
+      "schema": "message",
+      "description": "Chat messages within a game."
+    },
+    "/games/{gameId}/history/{historyId}": {
+      "schema": "history",
+      "description": "History rounds within a game."
+    }
+  }
+}
