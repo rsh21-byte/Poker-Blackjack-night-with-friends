@@ -46,6 +46,7 @@ export interface RoundHistory {
   timestamp: number;
   baseBet: number;
   multiplier: number;
+  pokerPot?: number;
   actions: Record<string, PlayerAction>;
   winners: string[];
   balancesAfter: Record<string, number>;

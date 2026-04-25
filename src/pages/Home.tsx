@@ -15,6 +15,7 @@ export default function Home() {
   const navigate = useNavigate();
   const [joinCode, setJoinCode] = useState('');
   const [recentGames, setRecentGames] = useState<RecentGame[]>([]);
+  const [isCreating, setIsCreating] = useState(false);
 
   useEffect(() => {
     try {
@@ -36,8 +37,6 @@ export default function Home() {
     localStorage.setItem('__casino_recent_games', JSON.stringify(recent));
     setRecentGames(recent);
   };
-
-  const [isCreating, setIsCreating] = useState(false);
 
   const handleCreate = async (type: 'poker' | 'blackjack') => {
     if (!auth.currentUser) return;

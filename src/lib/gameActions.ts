@@ -107,6 +107,9 @@ export const closeRound = async (
     
     const balancesAfter: Record<string, number> = {};
     
+    const pokerPot = Object.values(round.actions).reduce((sum, act) => sum + (act.amount || 0), 0);
+    const pokerWinAmount = winners.length > 0 ? Math.floor(pokerPot / winners.length) : 0;
+    
     Object.keys(playersDict).forEach(uid => {
       let p = playersDict[uid];
       let newBalance = p.balance;
@@ -125,10 +128,9 @@ export const closeRound = async (
             newBalance = p.balance - action.amount; // lose
           }
         } else {
+          newBalance = p.balance - (action.amount || 0);
           if (winners.includes(uid)) {
-            newBalance = p.balance + action.amount * (multiplier || 1); // fix multiplier calculation for Poker
-          } else {
-            newBalance = p.balance - action.amount;
+            newBalance += pokerWinAmount;
           }
         }
       }
@@ -143,6 +145,7 @@ export const closeRound = async (
       timestamp: serverTimestamp(),
       baseBet: round.baseBet,
       multiplier,
+      pokerPot,
       actions: round.actions,
       winners,
       balancesAfter,

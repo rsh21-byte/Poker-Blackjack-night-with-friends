@@ -7,6 +7,7 @@ import { User, Coins, Check, AlertCircle, Trophy, Frown, XCircle } from 'lucide-
 import { motion, AnimatePresence } from 'motion/react';
 import ChatBox from '../components/ChatBox';
 import { playSound } from '../lib/sounds';
+import ShareButton from '../components/ShareButton';
 
 export default function Play() {
   const { code } = useParams();
@@ -15,13 +16,61 @@ export default function Play() {
   const [raiseAmount, setRaiseAmount] = useState('');
   const [betAmount, setBetAmount] = useState('');
 
+  const uid = auth.currentUser?.uid;
+  const me = uid ? players[uid] : undefined;
+
+  const prevRoundRef = useRef(game?.currentRound);
+  const prevHistoryLengthRef = useRef(history?.length || 0);
+  const prevBalanceRef = useRef(me?.balance);
+
+  useEffect(() => {
+    if (!me || !game) return;
+
+    // Detect round start (dealing cards)
+    if (!prevRoundRef.current && game.currentRound) {
+      playSound('deal');
+    }
+
+    // Detect round end (results)
+    if (prevRoundRef.current && !game.currentRound && history.length > prevHistoryLengthRef.current) {
+      // Analyze latest history for sounds
+      const latestHistory = history[0];
+      if (latestHistory && uid && latestHistory.actions[uid]) {
+        const act = latestHistory.actions[uid];
+        const isWinPoker = latestHistory.winners.includes(uid);
+        const outcomeBJ = latestHistory.outcomes ? latestHistory.outcomes[uid] : null;
+        
+        const isWin = outcomeBJ ? (outcomeBJ === 'win' || outcomeBJ === 'blackjack') : isWinPoker;
+        const isPush = outcomeBJ === 'push';
+        const isFold = act.type === 'fold';
+        
+        if (isWin) {
+          playSound('win');
+        } else if (isPush) {
+          playSound('push');
+        } else if (isFold) {
+          // already played fold sound when doing action probably
+        } else {
+          playSound('lose');
+        }
+      }
+    }
+
+    // Detect elimination
+    if (prevBalanceRef.current !== undefined && prevBalanceRef.current > 0 && me.balance === 0) {
+      // Small delay so it plays right after the lose sound
+      setTimeout(() => playSound('lose'), 600);
+    }
+
+    prevRoundRef.current = game.currentRound;
+    prevHistoryLengthRef.current = history.length;
+    prevBalanceRef.current = me.balance;
+  }, [game?.currentRound, history, me, uid]);
+
   if (loading) return <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4">טוען נתונים...</div>;
   if (!game) return <div className="p-8 text-center text-red-500">המשחק לא נמצא!</div>;
 
-  const uid = auth.currentUser?.uid;
   if (!uid) return <div className="p-8 text-center text-red-500">שגיאת התחברות קריטית</div>;
-
-  const me = players[uid];
 
   const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -67,67 +116,22 @@ export default function Play() {
           <p className="text-slate-400 text-lg">ממתין למנהל שיחלק יתרות ויתחיל את המשחק...</p>
         </div>
         {me.balance > 0 && (
-          <div className="inline-flex items-center gap-2 px-6 py-3 bg-emerald-500/10 border border-emerald-500/20 rounded-full">
+          <div className="inline-flex items-center gap-2 px-6 py-3 bg-emerald-500/10 border border-emerald-500/20 rounded-full mb-8">
              <Coins className="w-5 h-5 text-emerald-400" />
              <span className="text-emerald-400 font-bold tracking-widest text-lg">${me.balance}</span>
           </div>
         )}
+        <div className="flex justify-center">
+          <ShareButton code={code!} />
+        </div>
       </div>
     );
   }
 
   // PLAYING PHASE
   const round = game.currentRound;
-  const myAction = round?.actions[uid];
+  const myAction = uid ? round?.actions[uid] : undefined;
   const isBlackjack = game.meta.type === 'blackjack';
-
-  const prevRoundRef = useRef(game.currentRound);
-  const prevHistoryLengthRef = useRef(history.length);
-  const prevBalanceRef = useRef(me?.balance);
-
-  useEffect(() => {
-    if (!me) return;
-
-    // Detect round start (dealing cards)
-    if (!prevRoundRef.current && game.currentRound) {
-      playSound('deal');
-    }
-
-    // Detect round end (results)
-    if (prevRoundRef.current && !game.currentRound && history.length > prevHistoryLengthRef.current) {
-      // Analyze latest history for sounds
-      const latestHistory = history[0];
-      if (latestHistory && latestHistory.actions[uid]) {
-        const act = latestHistory.actions[uid];
-        const isWinPoker = latestHistory.winners.includes(uid);
-        const outcomeBJ = latestHistory.outcomes ? latestHistory.outcomes[uid] : null;
-        
-        const isWin = outcomeBJ ? (outcomeBJ === 'win' || outcomeBJ === 'blackjack') : isWinPoker;
-        const isPush = outcomeBJ === 'push';
-        const isFold = act.type === 'fold';
-        
-        if (isWin) {
-          playSound('win');
-        } else if (isPush) {
-          playSound('push');
-        } else if (isFold) {
-          // already played fold sound when doing action probably, but can play lose or thud here.
-        } else {
-          playSound('lose');
-        }
-      }
-    }
-
-    // Detect elimination
-    if (prevBalanceRef.current !== undefined && prevBalanceRef.current > 0 && me.balance === 0) {
-      // Small delay so it plays right after the lose sound
-      setTimeout(() => playSound('lose'), 600);
-    }
-
-    prevRoundRef.current = game.currentRound;
-    prevHistoryLengthRef.current = history.length;
-    prevBalanceRef.current = me.balance;
-  }, [game.currentRound, history, me, uid]);
 
   const doAction = async (type: import('../lib/types').PlayerAction['type'], amount: number) => {
     if (!round) return;
@@ -163,6 +167,11 @@ export default function Play() {
 
   return (
     <div className="max-w-md mx-auto px-4 py-8">
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-xl font-bold">שולחן #{code}</h2>
+        <ShareButton code={code!} />
+      </div>
+
       {/* HUD */}
       <div className="flex justify-between items-center mb-8 bg-slate-900 border border-white/10 p-4 rounded-2xl shadow-lg">
         <div>
@@ -188,7 +197,8 @@ export default function Play() {
               const isWin = outcomeBJ ? (outcomeBJ === 'win' || outcomeBJ === 'blackjack') : isWinPoker;
               const isPush = outcomeBJ === 'push';
               const isFold = act.type === 'fold';
-              const winAmount = outcomeBJ === 'blackjack' ? act.amount * 1.5 : (outcomeBJ === 'win' ? act.amount : (isWinPoker ? act.amount * h.multiplier : 0));
+              const pokerWinAmount = h.pokerPot ? Math.floor(h.pokerPot / h.winners.length) : 0;
+              const winAmount = outcomeBJ === 'blackjack' ? act.amount * 1.5 : (outcomeBJ === 'win' ? act.amount : (isWinPoker ? pokerWinAmount : 0));
 
               if (isWin) {
                 return (
@@ -259,16 +269,16 @@ export default function Play() {
              </div>
           )}
         </div>
-      ) : myAction && (!isBlackjack || myAction.type !== 'bet') ? (
+      ) : myAction ? (
         <div className="text-center py-12 bg-slate-900 border border-white/5 rounded-3xl">
           <div className="w-16 h-16 bg-blue-500/20 border border-blue-500/50 rounded-full flex items-center justify-center mx-auto mb-6">
              <Check className="w-8 h-8 text-blue-400" />
           </div>
           <h2 className="text-2xl font-bold text-blue-400 mb-2">הפעולה נרשמה</h2>
           <p className="text-slate-400 mb-4">{myAction.type.toUpperCase()} • ${myAction.amount}</p>
-          <p className="text-sm text-slate-500">ממתינים ששאר השחקנים יסיימו...</p>
+          <p className="text-sm text-slate-500">ממתינים שהמנהל יסגור את הסיבוב...</p>
         </div>
-      ) : isBlackjack && !myAction ? (
+      ) : isBlackjack ? (
         <div className="bg-slate-900 border border-white/10 rounded-2xl p-6 text-center">
           {me.balance <= 0 ? (
             <div className="py-6">
@@ -298,7 +308,7 @@ export default function Play() {
             </>
           )}
         </div>
-      ) : me.balance < round.baseBet && !isBlackjack ? (
+      ) : me.balance < round.baseBet ? (
         <div className="text-center py-12 bg-red-900/20 border border-red-500/20 rounded-3xl">
           <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
           <h2 className="text-xl font-bold text-red-400 mb-2">אין מספיק יתרה</h2>
@@ -317,67 +327,43 @@ export default function Play() {
              <p className="text-3xl font-mono font-bold text-white">${round.baseBet}</p>
            </div>
            
-           {!isBlackjack ? (
-             <>
-               <button 
-                 onClick={() => doAction('call', round.baseBet)}
-                 className="w-full py-5 bg-blue-600 hover:bg-blue-500 rounded-2xl font-bold text-2xl transition shadow-xl shadow-blue-900/30 active:scale-95 flex items-center justify-center gap-2"
-               >
-                 <span>Call</span> <span className="font-mono">${round.baseBet}</span>
-                 {me.balance === round.baseBet && <span className="text-sm bg-red-500 px-2 py-1 rounded ml-2 text-white shadow">All-In!</span>}
-               </button>
+           <>
+             <button 
+               onClick={() => doAction('call', round.baseBet)}
+               className="w-full py-5 bg-blue-600 hover:bg-blue-500 rounded-2xl font-bold text-2xl transition shadow-xl shadow-blue-900/30 active:scale-95 flex items-center justify-center gap-2"
+             >
+               <span>Call</span> <span className="font-mono">${round.baseBet}</span>
+               {me.balance === round.baseBet && <span className="text-sm bg-red-500 px-2 py-1 rounded ml-2 text-white shadow">All-In!</span>}
+             </button>
 
-               <div className="bg-slate-900 border border-white/10 rounded-2xl p-4">
-                 <form onSubmit={handleRaiseSubmit} className="flex gap-2">
-                   <input 
-                     type="number"
-                     placeholder={`Raise (מינ' ${round.baseBet * 2})`}
-                     value={raiseAmount}
-                     onChange={e => setRaiseAmount(e.target.value)}
-                     className="flex-1 bg-slate-800 border border-white/10 rounded-xl px-4 py-3 font-mono text-lg focus:border-amber-500 outline-none w-full"
-                   />
-                   <button 
-                     type="submit"
-                     disabled={!raiseAmount || parseInt(raiseAmount) < round.baseBet * 2 || parseInt(raiseAmount) > me.balance}
-                     className="w-32 bg-amber-600 hover:bg-amber-500 disabled:bg-slate-800 disabled:text-slate-500 rounded-xl font-bold transition flex items-center justify-center relative overflow-hidden"
-                   >
-                     <span>Raise</span>
-                     {parseInt(raiseAmount) === me.balance && <div className="absolute inset-x-0 bottom-0 top-0 bg-red-600 text-white font-bold flex items-center justify-center text-sm shadow">ALL IN!</div>}
-                   </button>
-                 </form>
-                 <p className="text-xs text-slate-500 mt-2 text-center">עליך להעלות לפחות פי 2 מדמי הבסיס</p>
-               </div>
-
-               <button 
-                 onClick={() => doAction('fold', 0)}
-                 className="w-full py-4 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-2xl font-bold text-slate-300 transition active:scale-95 mt-4"
-               >
-                 Fold
-               </button>
-             </>
-           ) : (
-             <div className="grid grid-cols-2 gap-4">
-                <button 
-                  onClick={() => doAction('hit', myAction!.amount)}
-                  className="py-6 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-bold text-xl shadow-lg active:scale-95"
-                >
-                  Hit
-                </button>
-                <button 
-                  onClick={() => doAction('stand', myAction!.amount)}
-                  className="py-6 bg-slate-800 hover:bg-slate-700 text-white rounded-2xl font-bold text-xl shadow-lg active:scale-95"
-                >
-                  Stand
-                </button>
-                <button 
-                  disabled={me.balance < myAction!.amount * 2}
-                  onClick={() => doAction('double', myAction!.amount * 2)}
-                  className="py-4 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white rounded-2xl font-bold text-lg shadow-lg active:scale-95 col-span-2"
-                >
-                  Double ($ {myAction!.amount * 2})
-                </button>
+             <div className="bg-slate-900 border border-white/10 rounded-2xl p-4">
+               <form onSubmit={handleRaiseSubmit} className="flex gap-2">
+                 <input 
+                   type="number"
+                   placeholder={`Raise (מינ' ${round.baseBet * 2})`}
+                   value={raiseAmount}
+                   onChange={e => setRaiseAmount(e.target.value)}
+                   className="flex-1 bg-slate-800 border border-white/10 rounded-xl px-4 py-3 font-mono text-lg focus:border-amber-500 outline-none w-full"
+                 />
+                 <button 
+                   type="submit"
+                   disabled={!raiseAmount || parseInt(raiseAmount) < round.baseBet * 2 || parseInt(raiseAmount) > me.balance}
+                   className="w-32 bg-amber-600 hover:bg-amber-500 disabled:bg-slate-800 disabled:text-slate-500 rounded-xl font-bold transition flex items-center justify-center relative overflow-hidden"
+                 >
+                   <span>Raise</span>
+                   {parseInt(raiseAmount) === me.balance && <div className="absolute inset-x-0 bottom-0 top-0 bg-red-600 text-white font-bold flex items-center justify-center text-sm shadow">ALL IN!</div>}
+                 </button>
+               </form>
+               <p className="text-xs text-slate-500 mt-2 text-center">עליך להעלות לפחות פי 2 מדמי הבסיס</p>
              </div>
-           )}
+
+             <button 
+               onClick={() => doAction('fold', 0)}
+               className="w-full py-4 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-2xl font-bold text-slate-300 transition active:scale-95 mt-4"
+             >
+               Fold
+             </button>
+           </>
         </div>
       )}
 

@@ -8,6 +8,7 @@ import { useState, useEffect } from 'react';
 import { Users, AlertTriangle, ArrowRight, Check, History, RefreshCcw, X } from 'lucide-react';
 import ChatBox from '../components/ChatBox';
 import { playSound } from '../lib/sounds';
+import ShareButton from '../components/ShareButton';
 
 export default function Host() {
   const { code } = useParams();
@@ -106,6 +107,7 @@ export default function Host() {
           <p className="text-slate-400 text-sm">ניהול הקזינו • {gameName}</p>
         </div>
         <div className="flex items-center gap-4">
+          <ShareButton code={code!} />
           <span className="px-3 py-1 bg-slate-800 rounded-full text-xs font-mono">{playersList.length} שחקנים מחוברים</span>
           {game.meta.phase === 'playing' && (
             <>
@@ -332,21 +334,12 @@ export default function Host() {
                     <>
                       <div className="mb-6">
                         <label className="block text-sm text-slate-400 mb-2">
-                          מכפיל זכייה:
+                           הקופה (סך כל ההימורים):
                         </label>
-                        <div className="flex gap-2">
-                          {[1.5, 2, 3, 5].map(m => (
-                            <button 
-                              key={m}
-                              onClick={() => setMultiplier(m)}
-                              className={`flex-1 py-2 rounded-lg font-mono text-sm border transition ${
-                                multiplier === m ? 'bg-emerald-500/20 border-emerald-500 text-emerald-400' : 'bg-slate-900 border-slate-700 hover:border-slate-500'
-                              }`}
-                            >
-                              x{m}
-                            </button>
-                          ))}
+                        <div className="text-3xl font-mono text-emerald-400 font-bold bg-slate-900 border border-emerald-500/20 p-4 rounded-xl inline-block shadow-[0_0_20px_rgba(52,211,153,0.1)]">
+                           ${Object.values(game.currentRound!.actions).reduce((sum, act) => sum + (act.amount || 0), 0)}
                         </div>
+                        <p className="text-xs text-slate-500 mt-2">סכום זה יחולק שווה בשווה בין המנצחים שייבחרו.</p>
                       </div>
 
                       <div className="mb-6">
@@ -363,7 +356,7 @@ export default function Host() {
                                 disabled={didFold || !hasAction}
                                 onClick={() => toggleWinner(uid)}
                                 className={`px-3 py-1.5 rounded-lg text-sm flex items-center gap-1 transition disabled:opacity-30 disabled:cursor-not-allowed ${
-                                  isWin ? 'bg-emerald-500 text-white' : 'bg-slate-900 border border-slate-700 hover:border-slate-500'
+                                  isWin ? 'bg-emerald-500 text-white border border-emerald-500' : 'bg-slate-900 border border-slate-700 hover:border-slate-500'
                                 }`}
                               >
                                 {isWin && <Check className="w-3 h-3" />}
